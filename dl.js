@@ -2,9 +2,6 @@
 
 var arr = [],
 	core_push = arr.push,
-	core_slice = arr.slice,
-	core_indexOf = arr.indexOf,
-	core_concat = arr.concat,
 	support;
 
 //实现构造函数
@@ -12,9 +9,8 @@ var dl = function dl(selector){
 	//返回init构造函数所创建的对象
 	return new dl.prototype.init(selector);
 }
-//设置原型以及原型别名为fn
+//设置原型以及原型别名为fn，并设置核心属性
 dl.fn = dl.prototype = {
-	//添加核心方法
 	constructor:dl,
 	length:0,
 	//初始化方法
@@ -47,7 +43,7 @@ dl.fn = dl.prototype = {
 		} else if(dl.isFunc(selector)){
 			//保存原有onload事件
 			var oldFuc = window.onload;
-			if (oldFuc) {
+			if ( dl.isFunc(oldFuc) ) {
 				// 如果原有onload事件存在，则将新事件添加到原有函数的后面执行
 				// 并且用一个匿名函数包裹，如果多次传入函数能达到递归调用每一个函数的效果
 				window.onload = function(){
@@ -59,12 +55,6 @@ dl.fn = dl.prototype = {
 				window.onload = selector;
 			}
 		}
-	},
-	push:function (arr){
-		return 	dl.push.apply(this,arr);
-	},
-	each:function(fn){
-		return dl.each(this,fn);;
 	}
 }
 //将init构造函数的原型对象设置为dl的原型对象，这样为dl原型对象添加属性时init实例化出的对象也能继承到
@@ -85,25 +75,42 @@ dl.extend({
 	push:core_push,
 	//循环遍历方法
 	each:function (arr,fn){
-		for (var i = 0; i < arr.length; i++) {
-			//函数返回值为false时停止循环
-			if(fn.call(arr[i],i,arr[i]) === false){
-				break;
+		var i;
+		if ( dl.isLikeArr(arr) ) {
+			for (i = 0; i < arr.length; i++) {
+				//函数返回值为false时停止循环
+				if(fn.call(arr[i],i,arr[i]) === false){
+					break;
+				}
+			}
+		}else{
+			for(i in arr){
+				//函数返回值为false时停止循环
+				if(fn.call(arr[i],i,arr[i]) === false){
+					break;
+				}
 			}
 		}
+		
 		return arr;
 	},
+	//消除前后空白字符
 	trim: function(str){
-		if ( String.prototype.trim ) {
+		if ( support.trim ) {
 			return str.trim();
 		}else {
 			return str.replace(/^\s+|\s+$/g,"");
 		}
+	},
+	//去除重复
+	removeRepeat: function(arr,a){
+		return arr.indexOf(a) === -1;
 	}
 });
 
 //查询dom类工具
 dl.extend({
+	//查询第index个子dom元素
 	selectChild:function(dom,index){
 		var i = 0, j = 0, childNodes = dom.childNodes,
 			index = index || 0;
@@ -115,8 +122,21 @@ dl.extend({
 			}
 		}
 	},
+	//查询第index个兄弟dom元素
+	selectSibling:function(dom,index){
+		return selectChild(dom.parentNode,index);
+	},
+	//查询第一个子dom元素
 	firstChild:function (dom){
 		return dl.selectChild(dom,0);	
+	},
+	//查询下一个兄弟dom元素
+	nextSibling:function(dom){
+		return dom.nextElementSibling || dom.nextSibling;
+	},
+	//查询前一个兄弟dom元素
+	previousSibling: function(dom){
+		return dom.previousElementSibling || dom.previousSibling;
 	}
 });
 
@@ -147,9 +167,19 @@ dl.extend({
 	}
 });
 
-
-//dom操作方法
+//工具类方法
 dl.fn.extend({
+	push:function (arr){
+		return 	dl.push.apply(this,arr);
+	},
+	each:function(fn){
+		return dl.each(this,fn);;
+	}
+})
+
+//操作dom方法
+dl.fn.extend({
+	//添加节点
 	//将this当子元素添加到传入对象上
 	appendTo:function(selector){
 		var i = 0,context = dl(selector),arr = [],
@@ -163,7 +193,7 @@ dl.fn.extend({
 				// 将节点保存在arr中
 				arr.push( node );
 				// 将节点当子元素添加到上下文节点中
-				context[i].appendChild( node );
+				context[i].insertBefore( node );
 			}
 		}
 		//将所有子节点保存在数组中以jqc对象返回
@@ -200,11 +230,58 @@ dl.fn.extend({
 	},
 	//删除当前jqc对象中的所有dom元素
 	remove:function(){
+		var arr = [];
 		this.each(function(){
-			arr.push( this.parentNode.removeChild( this ) );
+			if ( this.nodeType == 1 && this.parentNode) {
+				arr.push( this.parentNode.removeChild( this ) );
+			}
 		})
 		//返回删除的jqc对象
-		return this;
+		return dl(arr);
+	}
+})
+
+//查询dom方法
+dl.fn.extend({
+	//获得当前节点下一个兄弟节点
+	next:function(){
+		var arr = [];
+		this.each(function(){
+			arr.push( dl.nextSibling(this) );
+		});
+		return dl(arr);
+	},
+	//获得当前节点下面所有兄弟节点
+	nextAll:function(){
+		var arr = [],node;
+		this.each(function(){
+			node = this;
+			while( node = dl.nextSibling(node) ){
+				if ( node.nodeType === 1 && dl.removeRepeat(arr,node))  {
+					arr.push(node);
+				}
+			}
+		});
+		return dl(arr);
+	},
+	//获得前一个兄弟节点
+	previous: function(){
+		var arr = [];
+		this.each(function(){
+			arr.push( dl.previousSibling(this) );
+		});
+		return dl(arr);
+	},
+	//前所有兄弟节点
+	previousAll: function(){
+		var arr = [],node;
+		this.each(function(){
+			node = this;
+			while( node = dl.previousSibling(node) ){
+				arr.push(node);
+			}
+		});
+		return dl(arr);
 	}
 })
 
@@ -215,11 +292,16 @@ dl.fn.extend({
 		this.each(function(){
 			//判断是否是支持addEventListener
 			if (support.addEventListener) {
-				this.addEventListener(type,fn);
+				this.addEventListener(type,function( e ){
+					fn.call( this, e || window.event );
+				});
 			} else {
 				var that = this;
 				dl.each(type.split(","),function(){
-					that.attacheEvent("on"+this,fn);
+					//可能传入多种事件type，对每一个type绑定函数
+					that.attacheEvent( "on" + dl.trim( this ), function( e ){
+						fn.call( this, e || window.event );
+					});
 				})
 			}
 		});
@@ -242,12 +324,122 @@ dl.fn.extend({
 		})
 		return this;
 	}
-})
+});
 
 //利用on方法为dl原型对象添加各种事件
 dl.each("click,mouseover,mouseout,mouseenter,mouseleave,mousemove,mousedown,mouseup,keydown,keyup".split(","),function(i,v){
 	dl.fn[v] = function(fn){
 		return this.on(v,fn);
+	}
+});
+
+//css操作模块
+dl.fn.extend({
+	css: function (cName,cValue){
+		if (typeof cName === "object") {
+			//如果第一个参数时对象则将对象内所有属性赋值给this
+			for(var k in cName){
+				this.each(function(){
+					this.style[k] = cName[k];
+				})
+			}
+		}
+		//判断参数个数
+		else if (arguments.length === 1 ) {
+			if (support.getComputedStyle) {
+				// 大部分浏览器获取属性
+				return window.getComputedStyle(this[0], null)[cName] ;
+			}else {
+				// ie浏览器获取属性
+				return this[0].currentStyle[cName] ;
+			}
+		} else {
+			return this.each(function(){
+				this.style[cName] = cValue;
+			});
+		}
+	},
+	hasClass:function(cName){
+		return (' '+this[0].className+' ').indexOf(' ' + dl.trim( cName ) + ' ') !== -1;
+	},
+	addClass: function(cName){
+		return this.each(function(){
+			//判断是否存在该类名
+			if ( !dl(this).hasClass(cName) ) {
+				this.className = this.className + " " + dl.trim( cName) ;
+			}
+		});		
+	},
+	removeClass: function(cName){
+		return this.each(function(){
+			//删除cName类名
+			this.className = dl.trim( (' '+this.className+' ').replace(" "+dl.trim(cName)+" "," ") );
+		});	
+	},
+	toggleClass: function(cName){
+		return	this.hasClass(cName) ? this.removeClass(cName) : this.addClass(cName);
+	}
+});
+
+//内容操作工具模块
+dl.extend({
+	getText: function(dom,results){
+		results = results || [];
+		//获取所有子节点
+		dl.each(dom.childNodes,function(){
+			if( this.nodeType === 3 ) {
+				//将文本节点的值添加进数组
+				results.push(this.nodeValue);
+			}else if( this.nodeType === 1){
+				//递归获取元素节点的文本节点
+				dl.getText(this,results);
+			}
+		});
+		//将获取到的文本节点的值转换成字符串返回
+		return results.join("");
+	},
+	setText: function(dom,text){
+
+		dom.innerHTML = "";
+		dom.appendChild( document.createTextNode(text) )
+	}
+});
+//属性操作模块
+dl.fn.extend({
+	//获取或者设置属性
+	attr: function(aName,aValue){
+		if (aValue == undefined) {
+			//传一个参数时返回对象第一个dom元素的aName属性
+			return this[0][aName];
+		}else {
+			//传两个参数时对所有dom对象设置属性
+			return this.each(function(){
+				this[aName] = aValue;
+			});
+		}
+	},
+	val:function(value){
+		return this.attr("value",value);
+	},
+	html:function(value){
+		return this.attr("innerHTML",value);
+	},
+	text: function(value){
+		//浏览器能力检测
+		if ("innerText" in this[0]) {
+			return this.attr("innerText",value);
+		}else{
+			if (arguments.length == 1) {
+				//传一个参数时设置所有dom的文本节点
+				return this.each(function(){
+					dl.setText(this,value)
+				});
+			}else {
+				//传两个参数时获取第一个dom节点的文本节点
+				return dl.getText(this[0]);
+			}
+			
+		}
 	}
 });
 
@@ -275,18 +467,29 @@ support.assert = function(fn){
 		div = null;
 	}
 }
+
+support.trim = function (){
+	return !!String.prototype.trim;
+}
 //测试方法是否拥有相应的能力，判断该方法是否被修改
-support.getElementsByClassName = support.assert(function(div){
+support.getElementsByClassName = support.assert( function(div){
 	div.innerHTML = "<div class='a'></div>";
 	return div.getElementsByClassName("a")[0];
 });
-support.addEventListener = support.assert(function(div){
+//对addEventListener进行能力检测
+support.addEventListener = support.assert( function(div){
 	var flag = false;
-	div.addEventListener("click",function(){flag = true});
+	div.addEventListener("click",function(e){
+		// support.event = !!(e);//检测event对象，感觉对性能提升没多大帮助,暂时注释
+		flag = true
+	});
 	div.click();
 	return flag;
 });
 
+support.getComputedStyle = support.assert( function(div){
+	return window.getComputedStyle(div, null)["width"] !== undefined;
+})
 
 //html转换dom对象
 var parseHTML = function(html){
