@@ -2,6 +2,7 @@
 
 var arr = [],
 	core_push = arr.push,
+	core_indexOf = arr.indexOf,
 	support;
 
 //实现构造函数
@@ -73,6 +74,7 @@ dl.fn.extend = dl.extend = function(obj){
 dl.extend({
 	//将arr数组对象添加到obj对象中，要求obj以及arr为数组或者伪数组对象
 	push:core_push,
+	indexOf:core_indexOf,
 	//循环遍历方法
 	each:function (arr,fn){
 		var i;
@@ -102,10 +104,7 @@ dl.extend({
 			return str.replace(/^\s+|\s+$/g,"");
 		}
 	},
-	//去除重复
-	removeRepeat: function(arr,a){
-		return arr.indexOf(a) === -1;
-	}
+	
 });
 
 //查询dom类工具
@@ -170,10 +169,20 @@ dl.extend({
 //工具类方法
 dl.fn.extend({
 	push:function (arr){
-		return 	dl.push.apply(this,arr);
+		var arr2 = [],i;
+		for (i = 0; i < arr.length; i++) {
+			//剔除重复的dom对象
+			if (  arr[i].nodeType == 1 && this.indexOf(arr[i]) == -1 && arr2.indexOf(arr[i]) == -1) {
+				arr2.push(arr[i]);
+			}
+		}
+		return 	dl.push.apply(this,arr2);
 	},
 	each:function(fn){
 		return dl.each(this,fn);;
+	},
+	indexOf:function(i){
+		return dl.indexOf.call(this,i);
 	}
 })
 
@@ -257,9 +266,7 @@ dl.fn.extend({
 		this.each(function(){
 			node = this;
 			while( node = dl.nextSibling(node) ){
-				if ( node.nodeType === 1 && dl.removeRepeat(arr,node))  {
-					arr.push(node);
-				}
+				arr.push(node);
 			}
 		});
 		return dl(arr);
@@ -404,6 +411,7 @@ dl.extend({
 		dom.appendChild( document.createTextNode(text) )
 	}
 });
+
 //属性操作模块
 dl.fn.extend({
 	//获取或者设置属性
@@ -442,6 +450,70 @@ dl.fn.extend({
 		}
 	}
 });
+
+var attrHook = {
+	left:"offsetLeft",
+	width:"offsetWidth",
+	top:"offsetTop",
+	height:"offsetHeight"
+};
+
+//动画帮助工具
+dl.extend({
+	ease:function(time, startLocations, target, dur, easingName ){
+		return dl.easings[easingName]( time, startLocations, target, dur);
+	},
+	easings: {
+		liner: function ( t, b, c, d ) { 
+			return t * ( c - b ) / d;
+		},
+		minusspeed: function ( t, b, c, d ) {
+			// 需要初始速度 和加速度
+			var a = 2 * ( c - b ) / ( d * d ),
+				v_0 = a * d;
+			return v_0 * t - a * t * t / 2;
+		}
+	}
+})
+//动画模块
+dl.fn.extend({
+	animate: function(target,dur,easingName){
+		var dom = this[0],
+			startTime = +new Date, 
+			easingName = easingName || "liner",
+			startLocations = {},
+			step = 25,
+			timerId,k;
+		
+		for(k in target){
+			//获得当前属性的数值
+			startLocations[k] = dom[attrHook[k]];
+		}
+		play();
+		this.timer = setInterval( play, step );
+		function play(){
+			var time = +new Date - startTime, tweens = {};
+			if (time >= dur) {
+				for(k in target){
+					//转换成number类型  去除"px"字符串
+					tweens[k] = parseInt(target[k]) - dom;
+					this.stop();
+				}
+			}else {
+				for(k in target){
+					tweens[k] = dl.ease(time,startLocations[k],target[k],dur,easingName);
+				}
+			}
+			for(k in tweens){
+				dom.style[k] = startLocations[k] + tweens[k] + "px";
+			}
+		};
+	},
+	stop:function(){
+		clearInterval(this.timer);
+		return this;
+	}
+})
 
 //能力检测模块
 support = {};
