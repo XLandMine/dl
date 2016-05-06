@@ -104,7 +104,6 @@ dl.extend({
 			return str.replace(/^\s+|\s+$/g,"");
 		}
 	},
-	
 });
 
 //查询dom类工具
@@ -451,6 +450,7 @@ dl.fn.extend({
 	}
 });
 
+//设置的属性对应style属性
 var attrHook = {
 	left:"offsetLeft",
 	width:"offsetWidth",
@@ -478,8 +478,11 @@ dl.extend({
 //动画模块
 dl.fn.extend({
 	animate: function(target,dur,easingName){
+		//对第一个dom实现动画
 		var dom = this[0],
+			//记录当前时间
 			startTime = +new Date, 
+			//默认使用liner运动
 			easingName = easingName || "liner",
 			startLocations = {},
 			step = 25,
@@ -489,21 +492,29 @@ dl.fn.extend({
 			//获得当前属性的数值
 			startLocations[k] = dom[attrHook[k]];
 		}
+		//运行一次方法让动画立即运动起来
 		play();
+		//循环
 		this.timer = setInterval( play, step );
 		function play(){
-			var time = +new Date - startTime, tweens = {};
+			//获得运动持续时间
+			var time = +new Date - startTime, 
+			tweens = {};
 			if (time >= dur) {
+				//此时运动持续时间大于总时间，应该停止动画
 				for(k in target){
 					//转换成number类型  去除"px"字符串
 					tweens[k] = parseInt(target[k]) - dom;
+					//停止动画
 					this.stop();
 				}
 			}else {
+				//此时调用运动算法获得当前时间对象的当前tween存入数组
 				for(k in target){
 					tweens[k] = dl.ease(time,startLocations[k],target[k],dur,easingName);
 				}
 			}
+			//设置样式
 			for(k in tweens){
 				dom.style[k] = startLocations[k] + tweens[k] + "px";
 			}
@@ -514,6 +525,74 @@ dl.fn.extend({
 		return this;
 	}
 })
+
+
+//callback模块
+// once 、 memory 、 unique 、stopOnFalse
+// once -- 确保这个回调列表只执行（ .fire() ）一次(像一个递延 Deferred)
+// memory -- 保持以前的值，将添加到这个列表的后面的最新的值立即执行调用任何回调 (像一个递延 Deferred)
+// unique -- 确保一次只能添加一个回调(所以在列表中没有重复的回调)
+// stop -- 当一个回调返回 false 时中断调用
+dl.Callbacks = function (opt){
+	var options = {},
+		self,
+		memoryArg = null,
+		list = [];
+	//分割opt
+	if (opt) {
+		opt = opt.split(" ");
+		for( var k in opt ){
+			if (opt[k]) {
+				// 如果opt[k]非空字符串，为options添加一个键为opt[k]值为true的属性
+				options[opt[k]] = true;
+			}
+		}
+	}
+	self = {
+		fire:function(){
+			//判断是否可以执行
+			if (!list.onceFlag) {
+				//如果存在once关键字，则将onceFlag置为true。阻止下次执行
+				if (options.once) {
+					list.onceFlag = true;
+				}
+				//如果存在memory关键字则保存arguments
+				if (options.memory) {
+					memoryArg = arguments;
+				}
+				// 循环执行list内的所有函数
+				dl.each(list,function(){
+					// 判断函数返回值以及是否有stop关键字
+					if (this.apply(this,arguments) === false && options.stop) {
+						//直接返回false停止遍历
+						return false;
+					}
+				})
+			}
+		},
+		add:function(fn){
+			//判断fn是否为函数
+			//并且如果存在unique关键字并且fn函数已经存在列表时，不添加该函数
+			if ( dl.isFunc(fn) && !(options.unique && self.has(fn)) ) {
+				list.push(fn);
+				if (options.memory && memoryArg != null) {
+					// 如果存在memory关键字则立即执行该函数
+					fn.apply(this,memoryArg);
+				}
+			}
+		},
+		remove:function(fn){
+			var index = list.indexOf(fn);
+			if (index > -1) {
+				list.splice(index,1);
+			}
+		},
+		has:function(fn){
+			return list.indexOf(fn) > -1;
+		}
+	};
+	return self;
+}
 
 //能力检测模块
 support = {};
